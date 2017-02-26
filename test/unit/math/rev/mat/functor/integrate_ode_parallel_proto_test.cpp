@@ -201,4 +201,3 @@ TEST_F(StanOde_parallel, cvodes_2cmt_oral_parallel) {
   res = stan::math::integrate_ode_parallel(f_, y0_v, t0, M, ts, theta_v, x_r, x_int, 0);
 }
 
-
