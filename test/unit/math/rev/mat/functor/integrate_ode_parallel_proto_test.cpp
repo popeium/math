@@ -7,6 +7,7 @@
  * CC=g++
  * CFLAGS += -DNDEBUG -fopenmp
  * CFLAGS_GTEST += -DNDEBUG -fopenmp
+ * LDFLAGS += -lgomp
  *
  * Also, its recommended to export the variable on the shell
  *
@@ -41,10 +42,12 @@
 // this is a small diversion from integrate_ode_bdf which returns the
 // coupled ode system as double only vector
 #include <test/unit/math/rev/mat/functor/integrate_ode_bdf_bare.hpp>
+#include <test/unit/math/rev/mat/functor/decouple_ode_states_blocked.hpp>
 
 #include <boost/random/mersenne_twister.hpp>
 
 #include <stan/math.hpp>
+#include <stan/math/rev/scal/meta/is_var.hpp>
 
 struct plain_oral_2cmt_ode_fun : public oral_2cmt_ode_fun {};
 
@@ -74,40 +77,39 @@ namespace stan {
                            double rel_tol = 1E-10,
                            double abs_tol = 1E-10,
                            long int max_steps = 1E8) {
-      int O = y0.size(); // number of ODEs
+      const int O = y0.size(); // number of ODEs
       int exceptions = 0;
-      typedef std::vector<std::vector<typename boost::math::tools::promote_args<T0, T4>::type> > res_t;
-      res_t res;
-#pragma omp parallel
+      const int J = M.size();
+      std::vector<std::vector<double> > y_coupled(J * ts.size());
+      std::vector<int> Mcum(J, 0);
+      for(int m = 1; m < J; ++m)
+        Mcum[m] = Mcum[m-1] + M[m-1];
+      
+#pragma omp parallel shared(y_coupled,exceptions)
       {
         //std::cout << "Hello from thread " <<  omp_get_thread_num() << ", nthreads " << omp_get_num_threads() << std::endl;
 
-#pragma omp for schedule(static,1) ordered
+#pragma omp for schedule(guided)
         for(int o = 0; o < O; ++o) {
-          std::vector<std::vector<double> > y_coupled;
           // exceptions must not leave an openMP thread, we have to
           // work around this by catching and later on rethrowing
           try {
             if(exceptions == 0) {
               std::vector<double> xrun_r(1, x_r[o]);
-              y_coupled = stan::math::integrate_ode_bdf_bare(f, y0[o], t0[o], ts, theta[o], xrun_r, x_i, pstream__, rel_tol, abs_tol, max_steps);
+              std::vector<std::vector<double> > y_coupled_run = stan::math::integrate_ode_bdf_bare(f, y0[o], t0[o], ts, theta[o], xrun_r, x_i, pstream__, rel_tol, abs_tol, max_steps);
+              for(int m = 0; m < M[o]; ++m)
+                y_coupled[Mcum[o] + m].swap(y_coupled_run[m]);
+              
             }
           } catch(const std::exception& e) {
             ++exceptions;
-          }
-#pragma omp ordered
-          {
-            if(exceptions == 0) {
-              res_t run = stan::math::decouple_ode_states(y_coupled, y0[o], theta[o]);
-              for(int m = 0; m < M[o]; ++m)
-                res.push_back(run[m]);
-            }
           }
         }
       }
       if (exceptions != 0)
         throw std::domain_error("ODE error");
-      return(res);
+
+      return(stan::math::decouple_ode_states_blocked(y_coupled, y0, theta, M));
     }
 
   }
