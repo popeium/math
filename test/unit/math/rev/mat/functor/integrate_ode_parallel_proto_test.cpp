@@ -79,33 +79,30 @@ namespace stan {
                            long int max_steps = 1E8) {
       const int O = y0.size(); // number of ODEs
       int exceptions = 0;
-      const int J = M.size();
-      std::vector<std::vector<double> > y_coupled(J * ts.size());
-      std::vector<int> Mcum(J, 0);
-      for(int m = 1; m < J; ++m)
+      std::vector<std::vector<double> > y_coupled(O * ts.size());
+      std::vector<int> Mcum(O);
+      Mcum[0] = 0;
+      for(int m = 1; m < O; ++m)
         Mcum[m] = Mcum[m-1] + M[m-1];
       
-#pragma omp parallel shared(y_coupled,exceptions)
-      {
-        //std::cout << "Hello from thread " <<  omp_get_thread_num() << ", nthreads " << omp_get_num_threads() << std::endl;
-
-#pragma omp for schedule(guided)
-        for(int o = 0; o < O; ++o) {
-          // exceptions must not leave an openMP thread, we have to
-          // work around this by catching and later on rethrowing
-          try {
-            if(exceptions == 0) {
-              std::vector<double> xrun_r(1, x_r[o]);
-              std::vector<std::vector<double> > y_coupled_run = stan::math::integrate_ode_bdf_bare(f, y0[o], t0[o], ts, theta[o], xrun_r, x_i, pstream__, rel_tol, abs_tol, max_steps);
-              for(int m = 0; m < M[o]; ++m)
-                y_coupled[Mcum[o] + m].swap(y_coupled_run[m]);
+#pragma omp parallel for schedule(runtime) shared(exceptions)
+      for(int o = 0; o < O; ++o) {
+        // exceptions must not leave an openMP thread, we have to
+        // work around this by catching and later on rethrowing
+        try {
+          if(exceptions == 0) {
+            const std::vector<double> xrun_r(1, x_r[o]);
+            std::vector<std::vector<double> > y_coupled_run = stan::math::integrate_ode_bdf_bare(f, y0[o], t0[o], ts, theta[o], xrun_r, x_i, pstream__, rel_tol, abs_tol, max_steps);
+            for(int m = 0; m < M[o]; ++m)
+              y_coupled[Mcum[o] + m].swap(y_coupled_run[m]);
               
-            }
-          } catch(const std::exception& e) {
-            ++exceptions;
           }
+        } catch(const std::exception& e) {
+#pragma omp atomic
+          ++exceptions;
         }
       }
+      
       if (exceptions != 0)
         throw std::domain_error("ODE error");
 
