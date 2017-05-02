@@ -18,12 +18,12 @@
 
 TEST(StanOde_stiff_stress_test, cvodes_bdf_hornberg) {
 
-  const size_t nIntegrations = 100;
-  const double rel_tol = 1E-5;
+  const size_t nIntegrations = 1000;
+  const double rel_tol = 1E-8;
   const double abs_tol = 1E-5;
   const double sdlog = 3.0;
   //const double sdlog = 0.1;
-    
+
   hornberg_ode_fun f_;
 
   // initial value and parameters from model definition
@@ -73,9 +73,9 @@ TEST(StanOde_stiff_stress_test, cvodes_bdf_hornberg) {
   std::vector<int> data_int;
 
   size_t integration = 0;
-  
+
   rng.seed(45656);
-  
+
   for( ; integration < nIntegrations; integration++) {
 
     std::vector<double> theta_run(theta);
@@ -93,7 +93,7 @@ TEST(StanOde_stiff_stress_test, cvodes_bdf_hornberg) {
 
     std::vector<std::vector<stan::math::var> > res_cvode
       = stan::math::integrate_ode_bdf(f_, y0_var, t0, ts, theta_var, data, data_int, 0, rel_tol, abs_tol);
-    
+
     stan::math::recover_memory();
   }
 
@@ -108,7 +108,7 @@ TEST(StanOde_stiff_stress_test, rk45_hornberg) {
   const double abs_tol = 1E-5;
   const double sdlog = 3.0;
   //const double sdlog = 0.1;
-  
+
   hornberg_ode_fun f_;
   //hornberg_ode_sd_fun fp_;
 
@@ -178,10 +178,10 @@ TEST(StanOde_stiff_stress_test, rk45_hornberg) {
 
     std::vector<std::vector<stan::math::var> > res_rk45
       = stan::math::integrate_ode_rk45(f_, y0_var, t0, ts, theta_var, data, data_int, 0, rel_tol, abs_tol);
-    
+
     stan::math::recover_memory();
   }
-  
+
   EXPECT_EQ(integration, nIntegrations);
  }
 */

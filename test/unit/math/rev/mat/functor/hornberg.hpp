@@ -28,7 +28,7 @@ struct hornberg_ode_fun {
   }
 };
 
-
+/*
 struct hornberg_ode_sd_fun {
   template <typename T0, typename T1, typename T2>
   inline
@@ -54,4 +54,4 @@ struct hornberg_ode_sd_fun {
     return(dfdt);
   }
 };
-
+*/
